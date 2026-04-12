@@ -1,0 +1,94 @@
+name: Auto Label PRs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Label PR based on changes
+        run: |
+          PR_NUMBER="${{ github.event.number }}"
+          PR_JSON=$(gh pr view "$PR_NUMBER" --json commits,labels,files,additions,deletions)
+          REPO_LABELS=$(gh label list --limit 200 --json name -q '.[].name')
+
+          COMMITS=$(echo "$PR_JSON" | jq -r '.commits[].messageHeadline')
+          FILES=$(echo "$PR_JSON" | jq -r '.files[].path')
+          CURRENT_LABELS=$(echo "$PR_JSON" | jq -r '.labels[].name')
+          ADDITIONS=$(echo "$PR_JSON" | jq -r '.additions // 0')
+          DELETIONS=$(echo "$PR_JSON" | jq -r '.deletions // 0')
+          CHANGED_LINES=$((ADDITIONS + DELETIONS))
+
+          has_repo_label() {
+            local label="$1"
+            echo "$REPO_LABELS" | grep -Fxq "$label"
+          }
+
+          has_pr_label() {
+            local label="$1"
+            echo "$CURRENT_LABELS" | grep -Fxq "$label"
+          }
+
+          add_label_if_available() {
+            local label="$1"
+            if has_repo_label "$label" && ! has_pr_label "$label"; then
+              gh pr edit "$PR_NUMBER" --add-label "$label"
+            fi
+          }
+
+          remove_label_if_present() {
+            local label="$1"
+            if has_repo_label "$label" && has_pr_label "$label"; then
+              gh pr edit "$PR_NUMBER" --remove-label "$label"
+            fi
+          }
+
+          # Determine semantic bump label.
+          BUMP_LABEL="patch"
+          if echo "$COMMITS" | grep -q "BREAKING CHANGE"; then
+            BUMP_LABEL="major"
+          elif echo "$COMMITS" | grep -Eq "^feat(\(|\[|:)"; then
+            BUMP_LABEL="minor"
+          elif echo "$COMMITS" | grep -Eq "^fix(\(|\[|:)"; then
+            BUMP_LABEL="patch"
+          fi
+          add_label_if_available "$BUMP_LABEL"
+
+          # Add area labels based on changed paths.
+          if echo "$FILES" | grep -Eq '^(\.github/workflows/|\.github/actions/)'; then
+            add_label_if_available "ci"
+          fi
+          if echo "$FILES" | grep -Eq '(^docs/|\.md$|AGENTS\.md$)'; then
+            add_label_if_available "docs"
+          fi
+          if echo "$FILES" | grep -Eq '(^test/|_test\.dart$)'; then
+            add_label_if_available "test"
+          fi
+
+          # Update size label by total changed lines.
+          if [ "$CHANGED_LINES" -le 49 ]; then
+            NEW_SIZE_LABEL="size/s"
+          elif [ "$CHANGED_LINES" -le 199 ]; then
+            NEW_SIZE_LABEL="size/m"
+          elif [ "$CHANGED_LINES" -le 499 ]; then
+            NEW_SIZE_LABEL="size/l"
+          else
+            NEW_SIZE_LABEL="size/xl"
+          fi
+
+          # Only update if size label changed
+          CURRENT_SIZE_LABEL=$(echo "$CURRENT_LABELS" | grep -E '^size/' || echo "")
+          if [ "$CURRENT_SIZE_LABEL" != "$NEW_SIZE_LABEL" ]; then
+            # Remove old size labels
+            for size_label in size/s size/m size/l size/xl; do
+              remove_label_if_present "$size_label"
+            done
+            # Add new size label
+            add_label_if_available "$NEW_SIZE_LABEL"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
