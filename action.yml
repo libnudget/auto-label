@@ -1,90 +1,124 @@
 ---
 name: Auto Label PRs
-description: GitHub Action for auto-labeling pull requests based on commits, files, and changes.
+description: GitHub Action for auto-labeling pull requests and issues based on commits, files, and changes.
 
 runs:
   using: composite
   steps:
-    - name: Label PR based on changes
+    - name: Label based on changes
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        PR_NUMBER="${{ github.event.number }}"
-        PR_JSON=$(gh pr view "$PR_NUMBER" --json commits,labels,files,additions,deletions)
+        EVENT_TYPE="${{ github.event_name }}"
+        NUMBER="${{ github.event.number }}"
         REPO_LABELS=$(gh label list --limit 200 --json name -q '.[].name')
-
-        COMMITS=$(echo "$PR_JSON" | jq -r '.commits[].messageHeadline')
-        FILES=$(echo "$PR_JSON" | jq -r '.files[].path')
-        CURRENT_LABELS=$(echo "$PR_JSON" | jq -r '.labels[].name')
-        ADDITIONS=$(echo "$PR_JSON" | jq -r '.additions // 0')
-        DELETIONS=$(echo "$PR_JSON" | jq -r '.deletions // 0')
-        CHANGED_LINES=$((ADDITIONS + DELETIONS))
 
         has_repo_label() {
           local label="$1"
           echo "$REPO_LABELS" | grep -Fxq "$label"
         }
 
-        has_pr_label() {
+        has_current_label() {
           local label="$1"
           echo "$CURRENT_LABELS" | grep -Fxq "$label"
         }
 
-        add_label_if_available() {
+        add_label() {
           local label="$1"
-          if has_repo_label "$label" && ! has_pr_label "$label"; then
-            gh pr edit "$PR_NUMBER" --add-label "$label"
+          if has_repo_label "$label" && ! has_current_label "$label"; then
+            if [ "$EVENT_TYPE" = "pull_request" ]; then
+              gh pr edit "$NUMBER" --add-label "$label"
+            else
+              gh issue edit "$NUMBER" --add-label "$label"
+            fi
           fi
         }
 
-        remove_label_if_present() {
+        remove_label() {
           local label="$1"
-          if has_repo_label "$label" && has_pr_label "$label"; then
-            gh pr edit "$PR_NUMBER" --remove-label "$label"
+          if has_repo_label "$label" && has_current_label "$label"; then
+            if [ "$EVENT_TYPE" = "pull_request" ]; then
+              gh pr edit "$NUMBER" --remove-label "$label"
+            else
+              gh issue edit "$NUMBER" --remove-label "$label"
+            fi
           fi
         }
 
-        # Determine semantic bump label.
-        BUMP_LABEL="patch"
-        if echo "$COMMITS" | grep -q "BREAKING CHANGE"; then
-          BUMP_LABEL="major"
-        elif echo "$COMMITS" | grep -Eq "^feat(\(|\[|:)"; then
-          BUMP_LABEL="minor"
-        elif echo "$COMMITS" | grep -Eq "^fix(\(|\[|:)"; then
+        # Get data based on event type
+        if [ "$EVENT_TYPE" = "pull_request" ]; then
+          PR_JSON=$(gh pr view "$NUMBER" --json commits,labels,files,additions,deletions)
+          COMMITS=$(echo "$PR_JSON" | jq -r '.commits[].messageHeadline')
+          FILES=$(echo "$PR_JSON" | jq -r '.files[].path')
+          CURRENT_LABELS=$(echo "$PR_JSON" | jq -r '.labels[].name')
+          ADDITIONS=$(echo "$PR_JSON" | jq -r '.additions // 0')
+          DELETIONS=$(echo "$PR_JSON" | jq -r '.deletions // 0')
+          CHANGED_LINES=$((ADDITIONS + DELETIONS))
+
+          # Determine semantic bump label for PRs
           BUMP_LABEL="patch"
-        fi
-        add_label_if_available "$BUMP_LABEL"
+          if echo "$COMMITS" | grep -q "BREAKING CHANGE"; then
+            BUMP_LABEL="major"
+          elif echo "$COMMITS" | grep -Eq "^feat(\(|\[|:)"; then
+            BUMP_LABEL="minor"
+          elif echo "$COMMITS" | grep -Eq "^fix(\(|\[|:)"; then
+            BUMP_LABEL="patch"
+          fi
+          add_label "$BUMP_LABEL"
 
-        # Add area labels based on changed paths.
-        if echo "$FILES" | grep -Eq '^(\.github/workflows/|\.github/actions/)'; then
-          add_label_if_available "ci"
-        fi
-        if echo "$FILES" | grep -Eq '(^docs/|\.md$|AGENTS\.md$)'; then
-          add_label_if_available "docs"
-        fi
-        if echo "$FILES" | grep -Eq '(^test/|_test\.dart$)'; then
-          add_label_if_available "test"
-        fi
+          # Add area labels based on changed paths
+          if echo "$FILES" | grep -Eq '^(\.github/workflows/|\.github/actions/)'; then
+            add_label "ci"
+          fi
+          if echo "$FILES" | grep -Eq '(^docs/|\.md$|AGENTS\.md$)'; then
+            add_label "docs"
+          fi
+          if echo "$FILES" | grep -Eq '(^test/|_test\.dart$)'; then
+            add_label "test"
+          fi
 
-        # Update size label by total changed lines.
-        if [ "$CHANGED_LINES" -le 49 ]; then
-          NEW_SIZE_LABEL="size/s"
-        elif [ "$CHANGED_LINES" -le 199 ]; then
-          NEW_SIZE_LABEL="size/m"
-        elif [ "$CHANGED_LINES" -le 499 ]; then
-          NEW_SIZE_LABEL="size/l"
+          # Update size label by total changed lines
+          if [ "$CHANGED_LINES" -le 49 ]; then
+            NEW_SIZE_LABEL="size/s"
+          elif [ "$CHANGED_LINES" -le 199 ]; then
+            NEW_SIZE_LABEL="size/m"
+          elif [ "$CHANGED_LINES" -le 499 ]; then
+            NEW_SIZE_LABEL="size/l"
+          else
+            NEW_SIZE_LABEL="size/xl"
+          fi
+
+          CURRENT_SIZE_LABEL=$(echo "$CURRENT_LABELS" | grep -E '^size/' || echo "")
+          if [ "$CURRENT_SIZE_LABEL" != "$NEW_SIZE_LABEL" ]; then
+            for size_label in size/s size/m size/l size/xl; do
+              remove_label "$size_label"
+            done
+            add_label "$NEW_SIZE_LABEL"
+          fi
         else
-          NEW_SIZE_LABEL="size/xl"
-        fi
+          # Handle issues
+          ISSUE_JSON=$(gh issue view "$NUMBER" --json labels,title,body)
+          CURRENT_LABELS=$(echo "$ISSUE_JSON" | jq -r '.labels[].name')
+          ISSUE_TITLE=$(echo "$ISSUE_JSON" | jq -r '.title')
+          ISSUE_BODY=$(echo "$ISSUE_JSON" | jq -r '.body // ""')
 
-        # Only update if size label changed
-        CURRENT_SIZE_LABEL=$(echo "$CURRENT_LABELS" | grep -E '^size/' || echo "")
-        if [ "$CURRENT_SIZE_LABEL" != "$NEW_SIZE_LABEL" ]; then
-          # Remove old size labels
-          for size_label in size/s size/m size/l size/xl; do
-            remove_label_if_present "$size_label"
-          done
-          # Add new size label
-          add_label_if_available "$NEW_SIZE_LABEL"
+          # Label based on issue content
+          ISSUE_LOWER=$(echo "$ISSUE_TITLE $ISSUE_BODY" | tr '[:upper:]' '[:lower:]')
+
+          if echo "$ISSUE_LOWER" | grep -qiE '(bug|error|crash|broken|fix)'; then
+            add_label "bug"
+          fi
+          if echo "$ISSUE_LOWER" | grep -qiE '(feature|request|add new|improve)'; then
+            add_label "enhancement"
+          fi
+          if echo "$ISSUE_LOWER" | grep -qiE '(security|vulnerability|exploit)'; then
+            add_label "security"
+          fi
+          if echo "$ISSUE_LOWER" | grep -qiE '(documentation|docs|readme)'; then
+            add_label "docs"
+          fi
+          if echo "$ISSUE_LOWER" | grep -qiE '(test|testing)'; then
+            add_label "test"
+          fi
         fi
