@@ -128,15 +128,15 @@ runs:
 
            # Add emoji reactions based on issue content
            if echo "$ISSUE_LOWER" | grep -qiE '(bug|error|crash|broken|fix)'; then
-             gh issue edit "$NUMBER" --add-reaction bug
+             gh api repos/$GITHUB_REPOSITORY/issues/$NUMBER/reactions -X POST -f content=bug
            fi
            if echo "$ISSUE_LOWER" | grep -qiE '(feature|request|add new|improve)'; then
-             gh issue edit "$NUMBER" --add-reaction hooray
+             gh api repos/$GITHUB_REPOSITORY/issues/$NUMBER/reactions -X POST -f content=hooray
            fi
            if echo "$ISSUE_LOWER" | grep -qiE '(security|vulnerability|exploit)'; then
-             gh issue edit "$NUMBER" --add-reaction eyes
+             gh api repos/$GITHUB_REPOSITORY/issues/$NUMBER/reactions -X POST -f content=eyes
            fi
            if echo "$ISSUE_LOWER" | grep -qiE '(question|help|how|confused)'; then
-             gh issue edit "$NUMBER" --add-reaction confused
+             gh api repos/$GITHUB_REPOSITORY/issues/$NUMBER/reactions -X POST -f content=confused
            fi
          fi
