@@ -1,11 +1,11 @@
-# Auto Label PRs
+# Auto Label
 
 Reusable GitHub Action for auto-labeling pull requests and issues based on commits, files, and changes.
 
 ## Usage
 
 ```yaml
-name: Auto Label PRs
+name: Auto Label
 
 on:
   pull_request:

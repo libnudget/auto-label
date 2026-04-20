@@ -1,5 +1,5 @@
 ---
-name: Auto Label PRs
+name: Auto Label
 description: GitHub Action for auto-labeling pull requests and issues based on commits, files, and changes.
 
 runs:
