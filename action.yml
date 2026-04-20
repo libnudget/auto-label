@@ -11,7 +11,11 @@ runs:
         GH_TOKEN: ${{ github.token }}
       run: |
         EVENT_TYPE="${{ github.event_name }}"
-        NUMBER="${{ github.event.number }}"
+        if [ "$EVENT_TYPE" = "pull_request" ]; then
+          NUMBER="${{ github.event.number }}"
+        else
+          NUMBER="${{ github.event.issue.number }}"
+        fi
         REPO_LABELS=$(gh label list --limit 200 --json name -q '.[].name')
 
         has_repo_label() {
