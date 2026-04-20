@@ -122,7 +122,21 @@ runs:
           if echo "$ISSUE_LOWER" | grep -qiE '(documentation|docs|readme)'; then
             add_label "docs"
           fi
-          if echo "$ISSUE_LOWER" | grep -qiE '(test|testing)'; then
-            add_label "test"
-          fi
-        fi
+           if echo "$ISSUE_LOWER" | grep -qiE '(test|testing)'; then
+             add_label "test"
+           fi
+
+           # Add emoji reactions based on issue content
+           if echo "$ISSUE_LOWER" | grep -qiE '(bug|error|crash|broken|fix)'; then
+             gh issue edit "$NUMBER" --add-reaction bug
+           fi
+           if echo "$ISSUE_LOWER" | grep -qiE '(feature|request|add new|improve)'; then
+             gh issue edit "$NUMBER" --add-reaction hooray
+           fi
+           if echo "$ISSUE_LOWER" | grep -qiE '(security|vulnerability|exploit)'; then
+             gh issue edit "$NUMBER" --add-reaction eyes
+           fi
+           if echo "$ISSUE_LOWER" | grep -qiE '(question|help|how|confused)'; then
+             gh issue edit "$NUMBER" --add-reaction confused
+           fi
+         fi
