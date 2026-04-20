@@ -32,6 +32,7 @@ jobs:
 
 **For Issues:**
 - **Type labels**: `bug`, `enhancement`, `security`, `docs`, `test` based on title and body content
+- **Emoji reactions**: 🐛 (bug), 🎉 (enhancement), 👀 (security), 😕 (question) based on title and body content
 
 ## Requirements
 
