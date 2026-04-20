@@ -127,9 +127,6 @@ runs:
            fi
 
            # Add emoji reactions based on issue content
-           if echo "$ISSUE_LOWER" | grep -qiE '(bug|error|crash|broken|fix)'; then
-             gh api repos/$GITHUB_REPOSITORY/issues/$NUMBER/reactions -X POST -f content=bug
-           fi
            if echo "$ISSUE_LOWER" | grep -qiE '(feature|request|add new|improve)'; then
              gh api repos/$GITHUB_REPOSITORY/issues/$NUMBER/reactions -X POST -f content=hooray
            fi
