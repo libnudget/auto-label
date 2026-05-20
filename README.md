@@ -23,6 +23,8 @@ jobs:
       - uses: libnudget/auto-label@v1
 ```
 
+To use a GitHub App token, pass it as `GH_TOKEN` or `GITHUB_TOKEN`.
+
 ## What it does
 
 **For PRs:**
