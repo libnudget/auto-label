@@ -1,5 +1,7 @@
 # Auto Label
 
+[![Release](https://img.shields.io/github/v/release/libnudget/auto-label?logo=github&label=latest)](https://github.com/libnudget/auto-label/releases)
+
 Reusable GitHub Action for auto-labeling pull requests and issues based on commits, files, and changes.
 
 ## Usage
