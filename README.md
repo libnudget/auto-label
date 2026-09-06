@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Coccinella-Labs/auto-label/main/.github/assets/thumbnail.png" alt="auto-label" width="100%">
+</p>
+
 # Auto Label
 
 [![Release](https://img.shields.io/github/v/release/libnudget/auto-label?logo=github&label=latest)](https://github.com/libnudget/auto-label/releases)
